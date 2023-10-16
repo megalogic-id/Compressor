@@ -15,35 +15,30 @@ def index():
 @app.route('/compress', methods=['POST'])
 def compress_image():
     if 'image' not in request.files:
-        # Handle case where no image is uploaded
         return "No image selected for upload."
 
-    images = request.files.getlist('image')  # Get a list of uploaded files
+    images = request.files.getlist('image')
 
     if not images:
-        # Handle case where no file is selected
         return "No file selected."
 
-    # Check if it's a single file upload
     if len(images) == 1:
         image = images[0]
         original_filename = image.filename
-
-        # Compress the image by adjusting JPEG compression quality
         img = Image.open(image)
         compressed_image = BytesIO()
-        # Adjust the quality value as needed (e.g., 70)
-        img.save(compressed_image, 'JPEG', optimize=True, quality=50)
 
-        # Set the file name with the original name + "compressed.jpg"
+        file_ext = os.path.splitext(original_filename)[1].lower()
+        if file_ext == '.jpg' or file_ext == '.jpeg':
+            img.save(compressed_image, 'JPEG', optimize=True, quality=50)
+        elif file_ext == '.png':
+            img.save(compressed_image, 'PNG', optimize=True, compress_level=9)
+
         compressed_filename = os.path.splitext(original_filename)[
-            0] + "_compressed.jpg"
-
-        # Return the compressed image as a downloadable response with the new filename
+            0] + "_compressed" + file_ext
         compressed_image.seek(0)
         return send_file(compressed_image, as_attachment=True, download_name=compressed_filename)
 
-    # Batch upload: Create a ZIP archive
     zip_filename = "compressed_images.zip"
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -51,12 +46,17 @@ def compress_image():
             original_filename = image.filename
             img = Image.open(image)
             compressed_image = BytesIO()
-            img.save(compressed_image, 'JPEG', optimize=True, quality=50)
+
+            file_ext = os.path.splitext(original_filename)[1].lower()
+            if file_ext == '.jpg' or file_ext == '.jpeg':
+                img.save(compressed_image, 'JPEG', optimize=True, quality=50)
+            elif file_ext == '.png':
+                img.save(compressed_image, 'PNG',
+                         optimize=True, compress_level=9)
+
             compressed_image.seek(0)
-            # Add each compressed image to the ZIP archive
             zipf.writestr(original_filename, compressed_image.read())
 
-    # Return the ZIP archive as a downloadable response
     zip_buffer.seek(0)
     response = make_response(zip_buffer.read())
     response.headers["Content-Type"] = "application/zip"
